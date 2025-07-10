@@ -14,9 +14,28 @@ class Command(BaseCommand):
             type=str,
             help='App label of the application containing the migrations (e.g., "myapp"). If omitted, all apps are processed.',
         )
+        parser.add_argument(
+            'migration_id',
+            nargs='?',
+            type=str,
+            help='Migration name (e.g., "0001_initial"). If specified with app_label, outputs SQL for just this migration.',
+        )
+        parser.add_argument(
+            '--no-sql-run',
+            action='store_true',
+            help='Do not execute the SQL, just print it.'
+        )
+        parser.add_argument(
+            '--no-fake',
+            action='store_true',
+            help='Do not mark the migration as fake in django_migrations.'
+        )
 
     def handle(self, *args, **options):
         app_label = options.get('app_label')
+        migration_id = options.get('migration_id')
+        no_sql_run = options.get('no_sql_run')
+        no_fake = options.get('no_fake')
 
         # Use the default database connection
         default_connection = connections['default']
@@ -28,6 +47,59 @@ class Command(BaseCommand):
 
         available_migrations = loader.disk_migrations or {}
         applied_migrations = loader.applied_migrations or set()
+
+        if app_label and migration_id:
+            # Output SQL for a specific migration, execute it, and mark as fake
+            key = (app_label, migration_id)
+            if key not in available_migrations:
+                raise CommandError(f"Migration {app_label}.{migration_id} not found.")
+            migration = available_migrations[key]
+            self.stdout.write(f"-- SQL for {app_label}.{migration_id} --")
+            previous_migration_name = self._get_previous_migration(loader, app_label, migration_id)
+            from_state = loader.project_state((app_label, previous_migration_name)) if previous_migration_name else loader.project_state()
+            to_state = loader.project_state((app_label, migration_id))
+            with default_connection.schema_editor(collect_sql=True) as schema_editor:
+                for operation in migration.operations:
+                    operation.database_forwards(
+                        app_label,
+                        schema_editor,
+                        from_state,
+                        to_state
+                    )
+                sql_statements = schema_editor.collected_sql
+            migration_faked = False
+            if sql_statements:
+                for sql in sql_statements:
+                    self.stdout.write(sql)
+                    if not no_sql_run:
+                        try:
+                            db_cursor.execute(sql)
+                            self.stdout.write(f"  [OK] Executed: {sql[:80]}{'...' if len(sql) > 80 else ''}")
+                            migration_faked = True
+                        except Exception as e:
+                            self.stdout.write(f"  [IGNORED ERROR] {e} | SQL: {sql[:80]}{'...' if len(sql) > 80 else ''}")
+                    else:
+                        migration_faked = True  # If not running SQL, still allow fake
+            else:
+                self.stdout.write("(No SQL generated for this migration)")
+                migration_faked = True  # If no SQL, still mark as fake
+            # Mark as fake if at least one SQL ran (or no SQL generated) and not --no-fake
+            if migration_faked and not no_fake:
+                try:
+                    db_cursor.execute(
+                        """
+                        INSERT INTO django_migrations (app, name, applied)
+                        VALUES (%s, %s, %s)
+                        """,
+                        [app_label, migration_id, timezone.now()]
+                    )
+                    self.stdout.write(f"  [FAKE] Marked {app_label}.{migration_id} as applied in django_migrations.")
+                except Exception as e:
+                    self.stdout.write(f"  [IGNORED ERROR] Could not mark as fake: {e}")
+            elif migration_faked and no_fake:
+                self.stdout.write(f"  [SKIP FAKE] Not marking {app_label}.{migration_id} as applied due to --no-fake.")
+            self.stdout.write("\nSQL execution complete.")
+            return
 
         if app_label:
             app_labels = [app_label]
@@ -70,16 +142,20 @@ class Command(BaseCommand):
                 if sql_statements:
                     for sql in sql_statements:
                         try:
-                            db_cursor.execute(sql)
-                            self.stdout.write(f"  [OK] Executed: {sql[:80]}{'...' if len(sql) > 80 else ''}")
-                            migration_faked = True
+                            if not no_sql_run:
+                                db_cursor.execute(sql)
+                                self.stdout.write(f"  [OK] Executed: {sql[:80]}{'...' if len(sql) > 80 else ''}")
+                                migration_faked = True
+                            else:
+                                self.stdout.write(f"  [SKIP RUN] {sql[:80]}{'...' if len(sql) > 80 else ''}")
+                                migration_faked = True
                         except Exception as e:
                             self.stdout.write(f"  [IGNORED ERROR] {e} | SQL: {sql[:80]}{'...' if len(sql) > 80 else ''}")
                 else:
                     self.stdout.write("  (No SQL generated for this migration)")
                     migration_faked = True  # If no SQL, still mark as fake
-                # Mark as fake if at least one SQL ran (or no SQL generated)
-                if migration_faked:
+                # Mark as fake if at least one SQL ran (or no SQL generated) and not --no-fake
+                if migration_faked and not no_fake:
                     try:
                         db_cursor.execute(
                             """
@@ -91,6 +167,8 @@ class Command(BaseCommand):
                         self.stdout.write(f"  [FAKE] Marked {label}.{migration_name} as applied in django_migrations.")
                     except Exception as e:
                         self.stdout.write(f"  [IGNORED ERROR] Could not mark as fake: {e}")
+                elif migration_faked and no_fake:
+                    self.stdout.write(f"  [SKIP FAKE] Not marking {label}.{migration_name} as applied due to --no-fake.")
         if not found_unmigrated:
             self.stdout.write("All migrations for the specified app(s) are already applied.")
         else:
