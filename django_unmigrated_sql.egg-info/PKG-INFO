@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: django-unmigrated-sql
-Version: 0.1.0
+Version: 0.2.0
 Summary: A Django management command to execute and fake all unmigrated SQL migrations for any or all apps, ignoring errors and not using transactions.
 Home-page: https://github.com/mahiti/django-unmigrated-sql
 Author: mahiti.org
