@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "django-unmigrated-sql"
+version = "0.1.0"
+description = "A Django management command to execute and fake all unmigrated SQL migrations for any or all apps, ignoring errors and not using transactions."
+authors = [
+    { name = "mahiti.org", email = "opensource@mahiti.org" }
+]
+readme = "../README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Framework :: Django",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "Django>=2.2"
+] 
