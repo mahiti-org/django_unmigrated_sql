@@ -1,0 +1,19 @@
+Metadata-Version: 2.4
+Name: django-unmigrated-sql
+Version: 0.1.0
+Summary: A Django management command to execute and fake all unmigrated SQL migrations for any or all apps, ignoring errors and not using transactions.
+Home-page: https://github.com/mahiti/django-unmigrated-sql
+Author: mahiti.org
+Author-email: "mahiti.org" <opensource@mahiti.org>
+Classifier: Framework :: Django
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: Django>=2.2
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python

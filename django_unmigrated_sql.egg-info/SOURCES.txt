@@ -1,0 +1,12 @@
+LICENSE
+README.md
+pyproject.toml
+setup.py
+django_unmigrated_sql.egg-info/PKG-INFO
+django_unmigrated_sql.egg-info/SOURCES.txt
+django_unmigrated_sql.egg-info/dependency_links.txt
+django_unmigrated_sql.egg-info/requires.txt
+django_unmigrated_sql.egg-info/top_level.txt
+management/__init__.py
+management/commands/__init__.py
+management/commands/unmigrated-sql.py
